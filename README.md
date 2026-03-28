@@ -1,4 +1,4 @@
-#Assistente de Viagem Inteligente
+# Assistente de Viagem Inteligente
 
 Este é um aplicativo de desktop simples, criado com o framework Flet, que utiliza a inteligência artificial do Google Gemini para gerar roteiros de viagem personalizados.
 
