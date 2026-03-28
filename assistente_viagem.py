@@ -1,117 +1,65 @@
 import flet as ft
-import google.generativeai as genai
+from google import genai
 from dotenv import load_dotenv
 import os
 
-# --- CONFIGURAÇÃO DA API ---
+# --- CONFIGURAÇÃO ---
 load_dotenv()
 API_KEY = os.getenv("API_KEY")
-genai.configure(api_key=API_KEY)
 
-# --- MODELO DA INTERFACE ---
+# Em 2026, precisamos garantir que o cliente use a versão estável
+client = genai.Client(api_key=API_KEY, http_options={'api_version': 'v1'})
+
 def main(page: ft.Page):
-    page.title = "Assistente de Viagem Inteligente"
-    page.vertical_alignment = ft.MainAxisAlignment.CENTER
+    page.title = "Assistente de Viagem"
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
+    page.scroll = ft.ScrollMode.AUTO
 
-    destino_input = ft.TextField(
-        label="Destino da Viagem",
-        hint_text="Ex: Paris, Tóquio, Nova York",
-        width=300
-    )
-
-    interesses_input = ft.TextField(
-        label="Seus Interesses",
-        hint_text="Ex: museus, gastronomia, vida noturna",
-        width=300
-    )
-
-    duracao_input = ft.TextField(
-        label="Duração da Viagem (em dias)",
-        hint_text="Ex: 3, 7, 10",
-        keyboard_type=ft.KeyboardType.NUMBER,
-        width=300
-    )
+    destino = ft.TextField(label="Para onde vamos?", width=300)
+    interesses = ft.TextField(label="O que você gosta? (ex: Museus)", width=300)
+    dias = ft.TextField(label="Quantos dias?", width=300)
     
-    # --- NOVO: Área que fará a transição animada ---
-    resultado_roteiro = ft.AnimatedSwitcher(
-        content=ft.Markdown(value="", selectable=True),
-        transition=ft.AnimatedSwitcherTransition.SCALE,
-        duration=300,
-        reverse_duration=100
-    )
-    
-    def gerar_roteiro(e):
-        destino = destino_input.value
-        interesses = interesses_input.value
-        duracao = duracao_input.value
+    # Usamos um container para o texto para evitar erros de renderização
+    resultado = ft.Text(value="", selectable=True)
 
-        if not destino or not interesses or not duracao:
-            page.snack_bar = ft.SnackBar(ft.Text("Por favor, preencha todos os campos!"))
-            page.snack_bar.open = True
-            page.update()
+    def clique_gerar(e):
+        if not destino.value or not interesses.value or not dias.value:
             return
         
-        page.snack_bar = ft.SnackBar(ft.Text(f"Gerando roteiro para {destino}..."))
-        page.snack_bar.open = True
+        resultado.value = "Consultando o Gemini... aguarde."
         page.update()
-        
+
         try:
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            
-            prompt = f"""
-Crie um roteiro de viagem resumido e direto com base nas seguintes informações:
+            # Recuperando seu prompt original que funcionava bem
+            prompt_completo = f"""
+            Crie um roteiro de viagem resumido e direto com base nas seguintes informações:
 
-Informações fornecidas pelo usuário:
-- Destino: {destino}
-- Duração: {duracao} dias
-- Interesses: {interesses}
+            Informações fornecidas pelo usuário:
+            - Destino: {destino.value}
+            - Duração: {dias.value} dias
+            - Interesses: {interesses.value}
 
-Gere um roteiro, dia a dia, usando tópicos. Seja conciso e vá direto ao ponto. Responda em português do Brasil.
-"""
-            
-            response = model.generate_content(prompt)
-            
-            # --- NOVO: Altera o conteúdo do AnimatedSwitcher ---
-            resultado_roteiro.content = ft.Markdown(value=response.text, selectable=True)
-            
-            page.snack_bar = ft.SnackBar(ft.Text("Roteiro gerado com sucesso!"))
-            page.snack_bar.open = True
+            Gere um roteiro, dia a dia, usando tópicos. Seja conciso e vá direto ao ponto. Responda em português do Brasil.
+            """
+
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt_completo
+            )
+            resultado.value = response.text
+            resultado.value = response.text
+        except Exception as err:
+            resultado.value = f"Erro persistente: {err}"
         
-        except Exception as ex:
-            # --- NOVO: Altera o conteúdo do AnimatedSwitcher em caso de erro ---
-            resultado_roteiro.content = ft.Markdown(value=f"Ocorreu um erro ao gerar o roteiro com o Gemini: {ex}", selectable=True)
-            page.snack_bar = ft.SnackBar(ft.Text("Erro ao gerar roteiro."))
-            page.snack_bar.open = True
-
         page.update()
-
-    btn_gerar_roteiro = ft.ElevatedButton(
-        text="Gerar Roteiro",
-        bgcolor=ft.Colors.BLUE,
-        color=ft.Colors.WHITE,
-        on_click=gerar_roteiro
-    )
 
     page.add(
-        ft.Column(
-            [
-                ft.Text("Planeje sua próxima viagem!", size=24, weight="bold"),
-                ft.Text("Preencha os campos para receber uma sugestão de roteiro.", size=16),
-                ft.Container(height=20),
-                destino_input,
-                interesses_input,
-                duracao_input,
-                ft.Container(height=20),
-                btn_gerar_roteiro,
-                ft.Container(height=20),
-                ft.Text("Seu roteiro aparecerá aqui:", size=14, weight="bold"),
-                resultado_roteiro,
-            ],
-            alignment=ft.CrossAxisAlignment.CENTER,
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER
-        )
+        ft.Text("Assistente de Viagem", size=30, weight="bold"),
+        destino, interesses, dias,
+        ft.ElevatedButton("Gerar Roteiro", on_click=clique_gerar),
+        ft.Divider(),
+        resultado
     )
 
 if __name__ == "__main__":
-    ft.app(target=main, view=ft.FLET_APP)
+    ft.app(target=main)
